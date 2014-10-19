@@ -14,6 +14,7 @@ import matplotlib.pylab as plt
 import matplotlib.mlab as mlab
 from scipy import optimize
 from scipy import stats
+from collections import Counter # count duplicated and stuff
 
 
 def load_experiment(filename):
@@ -46,7 +47,70 @@ def bin_spikes(trials, spk_times, time_bin):
     dir_rates should be an 8x2 array with the first column containing the directions
     (in degrees from 0-360) and the second column containing the average firing rate
     for each direction
+    
+    Note that some trials are repeated. i.e. the same angle may appear more than once
+    trials[:,0] = motion angles in radians (the physical activity)
+    trials[:,1] = timestamp of each activity
+    spk_times[:] = timestamp of each AP recorded for ONE neuron (in Seconds)
+    
+    dir_rate[:,0] = motion angles in radians
+    dir_rate[:,1] = firing rate for that angle in the given window
     """
+    angles_dict = Counter(trials[:,0]) # we get a dictionary of the values and their counts
+    dir_rates = np.zeros( (len(angles_dict),2 ) )
+    angles = angles_dict.items()
+    index = 0
+    # for each angle sum all the APs over all the trials. angle[0] contains the number of trials for that angle
+    for angle in angles: # select a particular angle
+        fire_cnt = 0
+        for a in range(0,len(trials[:,0])):
+            if(angle[0] == trials[a,0]):
+                activity_time = trials[a,1]
+                for api in range(0,len(spk_times)):
+                    if((spk_times[api] >= (activity_time - time_bin)) and (spk_times[api] <= (activity_time + time_bin)) ):
+                        fire_cnt = fire_cnt + 1
+                        #print "Fire at activity:" + str(activity_time) + "AP Time: " + str(spk_times[api]) + "Angle:" + str(angle[0])
+        # Update the (angle, fire count) into the OP array
+        # We need to divide by the nunmber of trials to get the average spike count per trial
+        # Divide by 2*time_bin to convert the spike count to Firing rate in spikes / second
+        dir_rates[index] = [angle[0], fire_cnt /(angle[1]* 2 * time_bin)]
+        index = index + 1
+    
+    dir_rates = dir_rates[dir_rates[:,0].argsort()] # sort by angle
+    # argsort() returns the indexes of the sorted elements
+    print dir_rates
+
+    # Now lets plot the data
+    width = 45
+    ax = plt.subplot(2,2,1)
+    rects1 = ax.bar(dir_rates[:,0] - width/2, dir_rates[:,1],width)
+    ax.set_xlabel("Direction of Motion (degrees)")
+    ax.set_ylabel("Firing Rate (spikes/s)")
+    ax.set_title("Example Neuron Tuning Curve")
+    ax.set_xlim([-width/2,315 + width/2])
+    ax.set_xticks(dir_rates[:,0])
+        # derive the labels for the x-ticks
+    label = []
+    for i in range(0,len(dir_rates[:,0])):
+        label.append(str(int(dir_rates[i,0])))
+        
+    ax.set_xticklabels(label)
+    
+    # http://matplotlib.org/examples/pylab_examples/polar_demo.html
+    # for the Polar plot, duplicate the first value into the value for 360
+    #dir_rates = np.append(dir_rates, [360,dir_rates[0,1]])
+    theta = np.append(dir_rates[:,0], 360)
+    r = np.append(dir_rates[:,1], dir_rates[0,1])
+    ax = plt.subplot(222,polar=True)
+    ax.set_xlabel("Direction of Motion (degrees)")
+    #ax.set_ylabel("Firing Rate (samples/second)")
+    ax.set_title("Example Neuron Tuning Curve")
+    ax.plot(np.deg2rad(theta),r,label="Firing Rate (spikes/s)")
+    ax.legend(loc=8,fontsize=7)
+
+    plt.show()
+
+    
     
     return dir_rates
     
@@ -121,4 +185,5 @@ def preferred_direction(fit_curve):
 if __name__ == "__main__":
     trials = load_experiment('trials.npy')   
     spk_times = load_neuraldata('example_spikes.npy') 
+    bin_spikes(trials, spk_times, 0.1)
 
