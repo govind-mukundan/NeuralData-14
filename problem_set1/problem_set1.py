@@ -238,7 +238,23 @@ def plot_waveforms(time,voltage,APTimes,titlestr):
    
     plt.show()
     
+import wave
+import struct
+def generate_wav(data, sample_rate):
+    """
+    Input the raw data in float (4 bytes) and sample rate in Hz
+    OP is a mono wave file called "Spike.wav" in the working directory
+    """
+    spike_wav = wave.open("Spike.wav",'w');
+    spike_wav.setparams((1, 4, int(sample_rate), 0, 'NONE', 'not compressed'))
+    mx = max(data)
+    mn = min(data)
+    for i in range(0, len(data)):
+        data[i] = 2 * (data[i] - mn)/(mx - mn) # Data shoule be in range [-1,1]
+        packed_value = struct.pack('<f',data[i])
+        spike_wav.writeframes(packed_value)
 
+    spike_wav.close()
         
 ##########################
 #You can put the code that calls the above functions down here    
@@ -252,4 +268,5 @@ if __name__ == "__main__":
     plot_waveforms(t,v,APTime,'Waveforms')
     detector_tester(APTime,actualTimes)
 
-
+    t,v = load_data('spikes_example.npy')
+    generate_wav(v,1/(t[2]-t[1]))
